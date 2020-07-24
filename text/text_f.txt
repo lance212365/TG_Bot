@@ -1,0 +1,5 @@
+The forms are contained inside of the WIE handbook. 
+
+The handbook in PDF format can be found in Moodle, under the scheme page.
+
+You can actually create the forms by opening the WIE handbook in Adobe Acrobat (not the Reader), and then export it to Word, and finally cut out the forms you need.  
