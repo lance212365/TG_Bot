@@ -7,110 +7,59 @@
     Framework: node.js
     Language: Javascript
     Database: MongoDB
+    Data Visualization: HighCharts 
 */
 
 /*
-[*]1. Fix login date on last visited.
-[*]2. Re adjust the msg for intro.
-[]3. Remember the choices and put it into spreadsheet report(Better if can be recorded to Excel file).
-[]4. Survey on inline message with integer and write on database with name and result (will later documented) ,while the user actually pressed the reply markup recently.
+============================================TO DO LIST=============================================
+
+[*] 1. Fix the User State Iteration.
+[] 2. Simplify statement objects and variables.
+[] 3. Await for survey documentation and put it into json and read from it as file (.json).
 
  */
 
 
 
 // API and database runtime preparation
+
 const TelegramBot = require('node-telegram-bot-api');
 const MongoClient = require('mongodb').MongoClient;
+const fs = require('fs');
 var XLSX = require('xlsx');
+const chartExporter = require("highcharts-export-server");
 
 // JSON config pre-load
-const Config = require('./tg_config.json');
-const Sticker = require('./sticker-lookup.json');
-const ReplyKeyboard = require('./reply_markup.json');
-const token = Config.token;
-const uri = Config.uri;
 
-const fs = require('fs');
+const Config = require('./json/tg_config.json');
+const Sticker = require('./json/sticker-lookup.json');
+const ReplyKeyboard = require('./json/reply_markup.json');
+const Survey = require('./json/survey.json');
 
 // Object constant for following code
-const bot = new TelegramBot(token, {polling: true});
-const client = new MongoClient(uri, { useUnifiedTopology: true });
 
-
-// *** String on start, Can be edited. ***
-var botname = "WIE_SPEED Orientation Chatbot";
-var intro = "My name is "+botname+".  I am created to help you with WIE. I will try to answer your questions regarding WIE. Click one of the buttons to ask me a question. At any time, you can show the buttons again by clicking the keyboard icon next to the smiley on the bottom right hand corner.\n你好，歡迎你使用PolyU SPEED WIE Telegram智能對話機械人!\n你可以使用輸入框以下的按鍵去選擇你想向機械人查詢的資訊！";
-
-//Unused
-const error = "Sorry, but I have no idea what you are talking about.\n\n 對不起，我不能理解你這句的意思。";
+const bot = new TelegramBot(Config.token, {polling: true});
+const client = new MongoClient(Config.uri, { useUnifiedTopology: true });
 
 //User variables
 
-var mapSP = [
-    {
-        "type":"photo", 
-        "media":"https://www.speed-polyu.edu.hk/f/page/1316/1897/20161213_PolyU-WK_map.jpg"
-    },
-    {
-        "type":"photo", 
-        "media":"https://www.speed-polyu.edu.hk/f/page/1316/7733/HHB%20Map%20(New).jpg"
-    },
-    {
-        "type":"photo", 
-        "media":"https://www.speed-polyu.edu.hk/f/page/1316/1897/(20140130)%20PolyU%20Main%20Campus.png"
-    }
-];
+const error = Config.errormsg;
+var mapSP = Config.mapPicture;
+var buttonmsg = Config.buttonmsg;
+var surveyTimer = 5000; //1000 = 1 second
+var updateTimer = 5000;
+
 
 client.connect(err =>{
-    function tellTimeDiffLastTime(diff){
-        var td = {
-            second : Math.floor(diff / 1000),
-            minute : Math.floor(diff / (1000*60)),
-            hour : Math.floor(diff  / (1000*60*60)),
-            day : Math.floor(diff / (1000*60*60*24))
-        };
-        console.log(td);
-        var diffmsg = "You have been leaved the chatbot for "+td.day;
-        if(td.day == 0 || td.day > 1){
-            diffmsg += " days ";
-        } else if (td.day == 1){
-            diffmsg += " day ";
-        }
-        if(td.hour%24 == 0 || td.hour%24 > 1){
-            diffmsg += td.hour%24 +" hours ";
-        } else if(td.hour%24 == 1){
-            diffmsg += td.hour%24 +" hour ";
-        }
-
-        if(td.minute%60 == 0 || td.minute%60 > 1){
-            diffmsg += td.minute%60 +" minutes ";
-        } else if(td.minute%60 == 1){
-            diffmsg += td.minute%60 +" minute ";
-        } 
-
-        if(td.second%60 == 0 || td.second%60 > 1){
-            diffmsg += td.second%60 +" seconds.";
-        } else if(td.second%60 == 1){
-            diffmsg += td.second%60 +" second.";
-        }
-        return diffmsg;
-    }
+    
     bot.onText(/\/start/, (msg) => {
         bot.sendMessage(msg.chat.id,"Hi, "+msg.from.first_name);
         var msgdate = new Date(msg.date*1000);
         var lastvisit = "";
-        var userobj = {
-            tgname: msg.from.first_name, 
-            date: Date(msgdate),
-            choice: ""
-        };
+        var userobj = {tgname: msg.from.first_name, date: Date(msgdate)};
         const collection = client.db("WIE_TGUser").collection("WIE_SPEEDTG");
         var findname = {tgname: msg.from.first_name};
-        var updateobj = {$set:{
-            tgname: msg.from.first_name, 
-            date: Date(msgdate),
-        }};
+        var updateobj = {$set:userobj};
         collection.find(findname).toArray(function(err, result) {
             if (err) throw err;
             var search = result[0];
@@ -118,15 +67,21 @@ client.connect(err =>{
             if(!search){
                 collection.insertOne(userobj);
                 console.log("1 document inserted");
-                bot.sendMessage(msg.chat.id,intro + "\n\nYour data has been registered to the Chatbot!\n\nWe will mark your user name and your last visited time here, Enjoy!",ReplyKeyboard);
+                bot.getMe().then((bots)=>{
+                    var intro = Config.intromsg.intro1 + bots.first_name + Config.intromsg.intro2;
+                    bot.sendMessage(msg.chat.id,intro + "\n\nYour data has been registered to the Chatbot!\n\nWe will mark your user name and your last visited time here, Enjoy!",ReplyKeyboard);
+                })
             } else {
                 var lastdate = new Date(result[0].date);
-                var timediff = Math.abs(msgdate.getTime() - lastdate.getTime() -1000);
+                var timediff = Math.abs(msgdate.getTime() - lastdate.getTime()+2000);
                 lastvisit += "It is nice to see you back.  You were last here at "+result[0].date+".\n\n"+tellTimeDiffLastTime(timediff)+"\n\nTo refresh your memory, here is my introduction again.\n\n";
                 collection.updateOne(findname, updateobj);
                 console.log("1 document updated");
                 console.log("Updated Date:" +Date(msgdate) +"(UNIX : "+(msg.date*1000)+")");
-                bot.sendMessage(msg.chat.id,lastvisit + intro,ReplyKeyboard);
+                bot.getMe().then((bots)=>{
+                    var intro = Config.intromsg.intro1 + bots.first_name + Config.intromsg.intro2;
+                    bot.sendMessage(msg.chat.id,lastvisit + intro,ReplyKeyboard);
+                })
             }
         });
         bot.sendSticker(msg.chat.id, Sticker.write);
@@ -145,7 +100,6 @@ client.connect(err =>{
             h = "0"+h.toString();
         }
         var time = h+":"+m;
-        
         var cursor = {venue:"HHB_WK"};
         var des = "West Kowloon (Yau Ma Tei) Campus 西九龍(油麻地)校園";
         var bp1 = false;
@@ -209,106 +163,121 @@ client.connect(err =>{
             }
             
             bot.sendMessage(msg.chat.id, 
-                "Current Time 現在時間: " + time +desmsg+ "\n\n" + t +limitmsg + "\n\n**Actual Time of Arrival subjects to the traffic on the road and the arrangement from the facilites.\n**實際到達時間需要視路面情況及院校安排而定。");
+                "Current Time 現在時間: " + time +desmsg+ "\n\n" + t +limitmsg + mnmsg+"\n\n**Actual Time of Arrival subjects to the traffic on the road and the arrangement from the facilites.\n**實際到達時間需要視路面情況及院校安排而定。");
             bp1 = false;
             bp2 = false;
         });
     })
-    function checkMessageAndSendback(chat,msgstr){
-        if (msgstr == "Where can I find PolyU SPEED?\nPolyU SPEED 在哪裡？"){
-            fs.readFile('SPEED_place.txt', 'utf-8', (err, data) => { 
-                if (err) throw err; 
-                bot.sendMediaGroup(chat.id,mapSP);
-                bot.sendMessage(chat.id,data);
-            })
-            return true;
-        }
-        if (msgstr == "A. What jobs are suitable for WIE?" || /what jobs/ig.test(msgstr)){
-            fs.readFile('./text/text_a.txt', 'utf-8', (err, data) => { 
-                if (err) throw err; 
-                bot.sendMessage(chat.id,data);
-                msgstr = "A. What jobs are suitable for WIE?" ;
-                markChoice(chat,msgstr);
-            })
-            return true;
-        }
-        if (msgstr == "B. I have no or less than 300 hrs job experience. \nI am looking for a job." || /Looking for jobs/ig.test(msgstr)){
-            fs.readFile('./text/text_b.txt', 'utf-8', (err, data) => { 
-                if (err) throw err; 
-                bot.sendMessage(chat.id,data);
-                bot.sendSticker(chat.id,Sticker.addoil);
-                msgstr = "B. I have no or less than 300 hrs job experience. I am looking for a job.";
-                markChoice(chat,msgstr);
-            })
-            return true;
-        }
-        if (msgstr == "C. I have no or less than 300 hrs job experience. \nI just received an offer." || /Got offer/ig.test(msgstr)){
-            fs.readFile('./text/text_c.txt', 'utf-8', (err, data) => { 
-                if (err) throw err; 
-                bot.sendMessage(chat.id,data);
-                bot.sendSticker(chat.id,Sticker.XD);
-                msgstr = "C. I have no or less than 300 hrs job experience. I just received an offer." ;
-                markChoice(chat,msgstr);
-            })
-            return true;
-        }
-        if (msgstr == "D. I have no or less than 300 hrs job experience. \nI am already employed." || /Employed/ig.test(msgstr)){
-            fs.readFile('./text/text_d.txt', 'utf-8', (err, data) => { 
-                if (err) throw err; 
-                bot.sendMessage(chat.id,data);
-                bot.sendSticker(chat.id,Sticker.food);
-                msgstr = "D. I have no or less than 300 hrs job experience. I am already employed." ;
-                markChoice(chat,msgstr);
-            })
-            return true;
-        }
-        if (msgstr == "E. I have 300 hrs, or more, of job experience." || /Got 300 hrs/ig.test(msgstr)){
-            fs.readFile('./text/text_e.txt', 'utf-8', (err, data) => { 
-                if (err) throw err; 
-                bot.sendMessage(chat.id,data);
-                bot.sendSticker(chat.id,Sticker.heart);
-                msgstr = "E. I have 300 hrs, or more, of job experience." ;
-                markChoice(chat,msgstr);
-            })
-            return true;
-        }
-        if (msgstr == "F. Where can I find the forms?" || /Where are the forms/ig.test(msgstr)){
-            fs.readFile('./text/text_f.txt', 'utf-8', (err, data) => { 
-                if (err) throw err; 
-                bot.sendMessage(chat.id,data);
-                msgstr = "F. Where can I find the forms?" ;
-                markChoice(chat,msgstr);
-            })
-            return true;
-        }
-    }
-    function markChoice(chat,msgstr){
-        const collection = client.db("WIE_TGUser").collection("WIE_SPEEDTG");
-        var findname = {tgname: chat.first_name};
-        var updateobj = {$set:{choice: msgstr}};
-        collection.find(findname).toArray(function(err, result) {
-            if (err) throw err;
-            var search = result[0];
-            console.log(search);
-            if(!search){
-                bot.sendMessage(chat,"Error Occured, please re-launch the chatbot.");
-            } else {
-                collection.updateOne(findname,updateobj);
-                console.log("Updated "+chat.first_name+"'s choice and printed on the file.");
-            }
-        });
-    }
     bot.on('message', (msg) => {
-        var initcheck = Boolean(/\/start/.test(msg.text.toString()) || /shuttle/i.test(msg.text.toString()));
+        var initcheck = Boolean(/\/start/.test(msg.text) || /shuttle/i.test(msg.text));
         if(!initcheck){
-            var strcheck = checkMessageAndSendback(msg.chat,msg.text.toString());
+            var strcheck = checkMessageAndSendback(msg.chat,msg.text);
             if(!strcheck){
                 bot.sendMessage(msg.chat.id,error);
                 bot.sendSticker(msg.chat.id,Sticker.No);
+            } else {
+                checkSurveyVaild(msg);
             }
         }
     });
-    setInterval(updateUserDBToText,5000);
+
+//========================================
+// Survey and score point function series
+//========================================
+
+    function checkSurveyVaild(msg){
+        inlineSurveyReminder(msg);
+        
+        
+        // !!!!!!!!!!!!!! WILL USE LATER DON'T DELETE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+        /* const collection = client.db("WIE_TGUser").collection("WIE_SPEEDTG");
+        var cursor = {tgname: msg.from.first_name};
+        collection.find(cursor).toArray(function (err,result){
+            if (err) throw err;
+            if(!result[0].Q1){
+                console.log("User did not fill in the survey, Initiaite the survey.");inlineSurveyReminder(msg);
+            }
+        }); */
+    }
+    var st;
+    var scorearr = [];
+    function inlineSurveyReminder(msg){
+        if(st) clearTimeout(st);
+        st = setTimeout(function(){
+            bot.sendMessage(msg.chat.id,"Hey, would you like to help me to fill out some survey?",Survey.ikyn);
+            bot.on('callback_query', query=>{
+                var scorestate = {
+                    chat:query.message.chat.id,
+                    username:query.from.first_name,
+                    q1:null,
+                    q2:null,
+                    q3:null
+                }
+                if(!scorearr[0]){
+                    scorearr[0] = scorestate;
+                    console.log("Creating Survey Buffer.");
+                } else {
+                    checkLoop:
+                        for(var i = 0;i<scorearr.length;i++){
+                            if(scorearr[i].chat == query.message.chat.id){
+                                break checkLoop;
+                            } else if(scorearr[i].chat != query.message.chat.id && i == (scorearr.length-1)){
+                                scorearr[scorearr.length] = scorestate;
+                                console.log("Create User "+(scorearr.length-1)+".");
+                                break checkLoop;
+                            }
+                        }
+                    }
+                if(query.data == "survey_reject"){
+                    bot.editMessageText("That's Okay, see you next time~",{chat_id:query.message.chat.id,message_id:query.message.message_id});
+                    query.data = null;
+                }
+                if(query.data == "survey_accept"){
+                    bot.editMessageText(Survey.question[0],{chat_id:query.message.chat.id,message_id:query.message.message_id,reply_markup:Survey.ikscore.reply_markup});
+                    query.data = null;
+                }
+                for(var i = 0;i<scorearr.length;i++){
+                    if(query.message.chat.id == scorearr[i].chat){
+                        console.log('User '+i+' Entering Survey.');
+                        if(query.data && query.message.text == Survey.question[0]){
+                            bot.editMessageText(Survey.question[1],{chat_id:query.message.chat.id,message_id:query.message.message_id,reply_markup:Survey.ikscore.reply_markup});
+                            scorearr[i].q1 = parseInt(query.data);
+                            query.data = null;
+                        }
+                        if(query.data && query.message.text == Survey.question[1]){
+                            bot.editMessageText(Survey.question[2],{chat_id:query.message.chat.id,message_id:query.message.message_id,reply_markup:Survey.ikscore.reply_markup});
+                            scorearr[i].q2 = parseInt(query.data);
+                            query.data = null;
+                        }
+                        if(query.data && query.message.text == Survey.question[2]){
+                            bot.editMessageText("Done",{chat_id:query.message.chat.id,message_id:query.message.message_id});
+                            scorearr[i].q3 = parseInt(query.data);
+                            var scoresheet = [scorearr[i].q1,scorearr[i].q2,scorearr[i].q3];
+                            console.log(scoresheet);
+                            scoresheetToDB(query.from.first_name,scoresheet);
+                            query.data = null;
+                        }
+                    }
+                } 
+            });
+        },surveyTimer);
+    }
+    function scoresheetToDB(tgname,score){
+        const collection = client.db("WIE_TGUser").collection("WIE_SPEEDTG");
+        var cursor = {tgname: tgname};
+        var updateobj = {$set:{Q1:score[0],Q2:score[1],Q3:score[2],Q4:score[3]}}
+        collection.find(cursor).toArray(function (err,result){
+            if (err) throw err;
+            collection.updateOne(cursor, updateobj);
+            console.log("Updated User Survey Result.");
+        });
+    }
+    
+//========================================
+//      Update DB to Text and Excel
+//========================================
 
     function updateUserDBToText(){
         const collection = client.db("WIE_TGUser").collection("WIE_SPEEDTG");
@@ -318,6 +287,7 @@ client.connect(err =>{
         if (fs.existsSync('WIE_Records.xlsx')) {
             userwb = XLSX.readFile('WIE_Records.xlsx');
             userws = userwb.Sheets["User Record"];
+            userws2 = userwb.Sheets["Choice Chart"];
         }
         collection.find({}).toArray(function(err,result){
             if (err) throw err;
@@ -333,13 +303,12 @@ client.connect(err =>{
                 });
             }
             userws = XLSX.utils.json_to_sheet(data,{header:["Name","Last Visited Date","Recent Choice"]});
-            userws['!cols'] = [{wch:360}];
+            userws['!cols'] = [{wpx:220},{wpx:330},{wpx:360}];
             userwb.Sheets["User Record"] = userws;
-            XLSX.writeFileAsync('WIE_Records.xlsx',userwb,(err) =>{
+            XLSX.writeFileAsync('WIE_Records.xlsx',userwb,{bookType:"xlsx"},(err) =>{
             });
         })
     }
-
     function createExcelFile(){
         var userwb = XLSX.utils.book_new();
         userwb.Props = {
@@ -349,9 +318,186 @@ client.connect(err =>{
             CreatedDate: new Date()
         }   
         userwb.SheetNames.push("User Record");
+        userwb.SheetNames.push("Choice Chart");
         var cl_data = [["Name","Last Visited Date","Recent Choice"]];
         var userws = XLSX.utils.aoa_to_sheet(cl_data);
+        userws['!cols'] = [{wpx:220},{wpx:330},{wpx:360}];
         return [userwb,userws];
     }
+    function exportDataToChartImage(){
+        const collection = client.db("WIE_TGUser").collection("WIE_LOG");
+        var ydata = new Array(0,0,0,0,0,0);
+        var xdata = buttonmsg;
+        collection.find({},{projection:{_id:0,choice:1}}).toArray(function (err,result){
+            if (err) throw err;
+            for(var y = 0; y < buttonmsg.length;y++){
+                for(var i = 0; i < result.length;i++){
+                    if(result[i].choice == buttonmsg[y]){
+                        ydata[y] += 1;
+                    }
+                }
+            }
+            makeChartOnResult(xdata,ydata);
+        });
+    }
+    function makeChartOnResult(label,value){
+        // Initialize the exporter
+        chartExporter.initPool();
+        // Chart details object specifies chart type and data to plot
+        var data = [];
+        var chartDetails = require('./json/chart_format.json').chartDetail;
+        for(var i=0;i<value.length;i++){
+            data.push({name:label[i],y:value[i]});
+        }
+        if(data[0]){
+            chartDetails.options.series[0] = {data:data};
+        } else if(!data[0]){
+            return false;
+        }
+        chartExporter.export(chartDetails, (err, res) => {
+            if(err) return console.log(err);
+            // Get the image data (base64)
+            let imageb64 = res.data;
+            // Filename of the output
+            let outputFile = "bar.png";
+            // Save the image to file
+            fs.writeFileSync(outputFile, imageb64, "base64", function(err) {
+                if (err) console.log(err);
+            });
+                chartExporter.killPool();
+        });
+    }
 
+//========================================
+//      Chatbot Interaction Markdown
+//========================================
+
+    function tellTimeDiffLastTime(diff){
+        var td = {
+            second : Math.floor(diff / 1000),
+            minute : Math.floor(diff / (1000*60)),
+            hour : Math.floor(diff  / (1000*60*60)),
+            day : Math.floor(diff / (1000*60*60*24))
+        };
+        console.log(td);
+        var diffmsg = "You have been leaved the chatbot for "+td.day;
+        if(td.day == 0 || td.day > 1){
+            diffmsg += " days ";
+        } else if (td.day == 1){
+            diffmsg += " day ";
+        }
+        if(td.hour%24 == 0 || td.hour%24 > 1){
+            diffmsg += td.hour%24 +" hours ";
+        } else if(td.hour%24 == 1){
+            diffmsg += td.hour%24 +" hour ";
+        }
+
+        if(td.minute%60 == 0 || td.minute%60 > 1){
+            diffmsg += td.minute%60 +" minutes ";
+        } else if(td.minute%60 == 1){
+            diffmsg += td.minute%60 +" minute ";
+        } 
+
+        if(td.second%60 == 0 || td.second%60 > 1){
+            diffmsg += td.second%60 +" seconds.";
+        } else if(td.second%60 == 1){
+            diffmsg += td.second%60 +" second.";
+        }
+        return diffmsg;
+    }
+    function checkMessageAndSendback(chat,msgstr){
+        var kbtxt = ReplyKeyboard.reply_markup.keyboard;
+        console.log(kbtxt[3]);
+        if (msgstr == kbtxt[3][0]){
+            fs.readFile('SPEED_place.txt', 'utf-8', (err, data) => { 
+                if (err) throw err; 
+                bot.sendMediaGroup(chat.id,mapSP);
+                bot.sendMessage(chat.id,data);
+            })
+            return true;
+        }
+        if (msgstr == kbtxt[0][0] || /what jobs/ig.test(msgstr)){
+            fs.readFile('./text/text_a.txt', 'utf-8', (err, data) => { 
+                if (err) throw err; 
+                bot.sendMessage(chat.id,data);
+                msgstr = buttonmsg[0] ;
+                markChoice(chat,msgstr);
+            })
+            return true;
+        }
+        if (msgstr == kbtxt[0][1] || /Looking for jobs/ig.test(msgstr)){
+            fs.readFile('./text/text_b.txt', 'utf-8', (err, data) => { 
+                if (err) throw err; 
+                bot.sendMessage(chat.id,data);
+                bot.sendSticker(chat.id,Sticker.addoil);
+                msgstr = buttonmsg[1];
+                markChoice(chat,msgstr);
+            })
+            return true;
+        }
+        if (msgstr == kbtxt[1][0] || /Got offer/ig.test(msgstr)){
+            fs.readFile('./text/text_c.txt', 'utf-8', (err, data) => { 
+                if (err) throw err; 
+                bot.sendMessage(chat.id,data);
+                bot.sendSticker(chat.id,Sticker.XD);
+                msgstr = buttonmsg[2] ;
+                markChoice(chat,msgstr);
+            })
+            return true;
+        }
+        if (msgstr == kbtxt[1][1] || /Employed/ig.test(msgstr)){
+            fs.readFile('./text/text_d.txt', 'utf-8', (err, data) => { 
+                if (err) throw err; 
+                bot.sendMessage(chat.id,data);
+                bot.sendSticker(chat.id,Sticker.food);
+                msgstr = buttonmsg[3];
+                markChoice(chat,msgstr);
+            })
+            return true;
+        }
+        if (msgstr == kbtxt[2][0] || /Got 300 hrs/ig.test(msgstr)){
+            fs.readFile('./text/text_e.txt', 'utf-8', (err, data) => { 
+                if (err) throw err; 
+                bot.sendMessage(chat.id,data);
+                bot.sendSticker(chat.id,Sticker.heart);
+                msgstr = buttonmsg[4];
+                markChoice(chat,msgstr);
+            })
+            return true;
+        }
+        if (msgstr == kbtxt[2][1] || /Where are the forms/ig.test(msgstr)){
+            fs.readFile('./text/text_f.txt', 'utf-8', (err, data) => { 
+                if (err) throw err; 
+                bot.sendMessage(chat.id,data);
+                msgstr = buttonmsg[5];
+                markChoice(chat,msgstr);
+            })
+            return true;
+        }
+    }
+    function markChoice(chat,msgstr){
+        const collection = client.db("WIE_TGUser").collection("WIE_LOG");
+        var findname = {tgname:chat.first_name};
+        var userobj = {tgname:chat.first_name,choice:msgstr};
+        var updateobj = {$set:userobj};
+        collection.find(findname).toArray(function(err, result) {
+            if (err) throw err;
+            var search = result[0];
+            console.log(search);
+            if(!search){
+                collection.insertOne(userobj);
+                console.log("WIE_LOG: 1 document inserted");
+            } else {
+                collection.updateOne(findname,updateobj);
+                console.log("WIE_LOG: Updated "+chat.first_name+"'s choice and printed on the file.");
+            }
+        });
+    }
+    bot.on('polling_error',(err)=>{
+        console.log(err);
+    })
+
+// Interval List
+    setInterval(updateUserDBToText,updateTimer);
+    setInterval(exportDataToChartImage,10000);
 });
