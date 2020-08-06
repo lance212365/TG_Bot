@@ -1,0 +1,22 @@
+{
+    "chartDetail":{
+        "type": "png",
+        "options": {
+            "chart": {
+                "type": "pie"
+            },
+            "title": {
+                "text": "Last Choice User Picked Preference"
+            },
+            "plotOptions": {
+                "pie": {
+                    "dataLabels": {
+                        "enabled": true,
+                        "format": "<b>{point.name}</b>: {point.y}"
+                    }
+                }
+            },
+            "series": []
+        }
+    }
+}

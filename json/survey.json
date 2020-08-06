@@ -1,0 +1,31 @@
+{
+    "question":[
+        "1. This chatbot can provide useful information.",
+        "2. This chatbot makes it easy to ask questions and get answers.",
+        "3. I have used many chatbots before."
+    ],
+    "ikyn":{
+        "reply_markup": 
+        {
+            "inline_keyboard":
+            [
+                [
+                    {"text":"Yes","callback_data":"survey_accept"}, 
+                    {"text":"No","callback_data":"survey_reject"}
+                ]
+            ]
+        }
+    },  
+    "ikscore":{
+        "reply_markup": 
+        {
+            "inline_keyboard":[
+                [{"text":"Strongly Agree","callback_data":"5"}], 
+                [{"text":"Agree","callback_data":"4"}],
+                [{"text":"Neutral","callback_data":"3"}],
+                [{"text":"Disagree","callback_data":"2"}],
+                [{"text":"Strongly Disagree","callback_data":"1"}]
+            ]
+        }
+    }
+}

@@ -1,0 +1,32 @@
+{
+    "token": "964238653:AAFHknNFyK86LtIZ2XOy5aVY0FZRWTBm-u8",
+    "uri": "mongodb+srv://wieDBUser:wiedbspeed@cluster0.5xcpe.gcp.mongodb.net/WIE_TGUser?retryWrites=true&w=majority",
+    "buttonmsg": [
+        "A. What jobs are suitable for WIE?",
+        "B. I have no or less than 300 hrs job experience. I am looking for a job.",
+        "C. I have no or less than 300 hrs job experience. I just received an offer.",
+        "D. I have no or less than 300 hrs job experience. I am already employed.",
+        "E. I have 300 hrs, or more, of job experience.",
+        "F. Where can I find the forms?"
+    ],
+    "mapPicture":[
+        {
+            "type":"photo", 
+            "media":"https://www.speed-polyu.edu.hk/f/page/1316/1897/20161213_PolyU-WK_map.jpg"
+        },
+        {
+            "type":"photo", 
+            "media":"https://www.speed-polyu.edu.hk/f/page/1316/7733/HHB%20Map%20(New).jpg"
+        },
+        {
+            "type":"photo", 
+            "media":"https://www.speed-polyu.edu.hk/f/page/1316/1897/(20140130)%20PolyU%20Main%20Campus.png"
+        }
+    ],
+    "errormsg":"Sorry, but I have no idea what you are talking about.\n\n 對不起，我不能理解你這句的意思。",
+    "intromsg":{
+        "intro1":"My name is ",
+        "intro2":".  I am created to help you with WIE. I will try to answer your questions regarding WIE. Click one of the buttons to ask me a question. At any time, you can show the buttons again by clicking the keyboard icon next to the smiley on the bottom right hand corner.\n你好，歡迎你使用PolyU SPEED WIE Telegram智能對話機械人!\n你可以使用輸入框以下的按鍵去選擇你想向機械人查詢的資訊！"
+    }
+        
+}
