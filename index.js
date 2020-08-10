@@ -84,15 +84,14 @@ client.connect(err =>{
                 bot.getMe().then((bots)=>{
                     var intro = Config.intromsg.intro1 + bots.first_name + Config.intromsg.intro2;
                     bot.sendMessage(msg.chat.id,lastvisit + intro,ReplyKeyboard.RM1);
-                    setTimeout(()=>{
-                        var reminder = fs.readFileSync('./Inkedreminder_LI.jpg')
-                        bot.sendPhoto(msg.chat.id,reminder,{caption:"Did you know? You can hide the reply keyboard by clicking this logo, when you want to use it again, click it again and it will show up again."});
-                    },3000);
-
                 })
             }
         });
         bot.sendSticker(msg.chat.id, Sticker.write);
+        setTimeout(()=>{
+            var reminder = fs.readFileSync('./Inkedreminder_LI.jpg')
+            bot.sendPhoto(msg.chat.id,reminder,{caption:"Did you know? You can hide the reply keyboard by clicking this logo, when you want to use it again, click it again and it will show up again."});
+        },3000);
     });
     bot.onText(/shuttle/i, (msg) =>{
         var today = new Date(msg.date*1000);
