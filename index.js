@@ -14,9 +14,10 @@
 ============================================TO DO LIST=============================================
 
 [*] 1. Fix the User State Iteration.
-[] 2. Simplify statement objects and variables.
-[] 3. Await for survey documentation and put it into json and read from it as file (.json).
-
+[*] 2. Make the chart.
+[*] 3. CSV on score array.
+[*] 4. Reply-markup caption reminder.
+[*] Optional: Divide the reply_markup into two.
  */
 
 
@@ -46,9 +47,11 @@ const client = new MongoClient(Config.uri, { useUnifiedTopology: true });
 const error = Config.errormsg;
 var mapSP = Config.mapPicture;
 var buttonmsg = Config.buttonmsg;
-var surveyTimer = 5000; //1000 = 1 second
+var surveyTimer = 10; //1000 = 1 second
 var updateTimer = 5000;
 
+const kbtxt1 = ReplyKeyboard.RM1.reply_markup.keyboard;
+const kbtxt2 = ReplyKeyboard.RM2.reply_markup.keyboard;
 
 client.connect(err =>{
     
@@ -69,7 +72,7 @@ client.connect(err =>{
                 console.log("1 document inserted");
                 bot.getMe().then((bots)=>{
                     var intro = Config.intromsg.intro1 + bots.first_name + Config.intromsg.intro2;
-                    bot.sendMessage(msg.chat.id,intro + "\n\nYour data has been registered to the Chatbot!\n\nWe will mark your user name and your last visited time here, Enjoy!",ReplyKeyboard);
+                    bot.sendMessage(msg.chat.id,intro + "\n\nYour data has been registered to the Chatbot!\n\nWe will mark your user name and your last visited time here, Enjoy!",ReplyKeyboard.RM1);
                 })
             } else {
                 var lastdate = new Date(result[0].date);
@@ -80,7 +83,12 @@ client.connect(err =>{
                 console.log("Updated Date:" +Date(msgdate) +"(UNIX : "+(msg.date*1000)+")");
                 bot.getMe().then((bots)=>{
                     var intro = Config.intromsg.intro1 + bots.first_name + Config.intromsg.intro2;
-                    bot.sendMessage(msg.chat.id,lastvisit + intro,ReplyKeyboard);
+                    bot.sendMessage(msg.chat.id,lastvisit + intro,ReplyKeyboard.RM1);
+                    setTimeout(()=>{
+                        var reminder = fs.readFileSync('./Inkedreminder_LI.jpg')
+                        bot.sendPhoto(msg.chat.id,reminder,{caption:"Did you know? You can hide the reply keyboard by clicking this logo, when you want to use it again, click it again and it will show up again."});
+                    },3000);
+
                 })
             }
         });
@@ -197,7 +205,8 @@ client.connect(err =>{
         collection.find(cursor).toArray(function (err,result){
             if (err) throw err;
             if(!result[0].Q1){
-                console.log("User did not fill in the survey, Initiaite the survey.");inlineSurveyReminder(msg);
+                console.log("User did not fill in the survey, Initiaite the survey.");
+                inlineSurveyReminder(msg);
             }
         }); */
     }
@@ -267,11 +276,58 @@ client.connect(err =>{
     function scoresheetToDB(tgname,score){
         const collection = client.db("WIE_TGUser").collection("WIE_SPEEDTG");
         var cursor = {tgname: tgname};
-        var updateobj = {$set:{Q1:score[0],Q2:score[1],Q3:score[2],Q4:score[3]}}
+        var updateobj = {$set:{Q1:score[0],Q2:score[1],Q3:score[2]}}
         collection.find(cursor).toArray(function (err,result){
             if (err) throw err;
             collection.updateOne(cursor, updateobj);
             console.log("Updated User Survey Result.");
+        });
+        var header = ["Username","Score1","Score2","Score3"];
+        collection.find({}).toArray((err,result)=>{
+            var userwb = XLSX.utils.book_new();
+            userwb.SheetNames.push("Survey Record");
+            var cl_data = [header];
+            var userws = XLSX.utils.aoa_to_sheet(cl_data);
+            var data = [];
+            for(var i=0;i<result.length;i++){
+                data.push({
+                    "Username":result[i].tgname,"Score1":result[i].Q1,"Score2":result[i].Q2,"Score3":result[i].Q3
+                });
+            }
+            userws = XLSX.utils.json_to_sheet(data,{header:header});
+            userwb.Sheets["Survey Record"] = userws;
+            XLSX.writeFileAsync('survey_score.csv', userwb, {bookType:'csv'},(err)=>{});
+            var label = ["Strongly Disagree","Disagree","Neutral","Agree","Strongly Agree"];
+            var question = [
+                "1. This chatbot can provide useful information.",
+                "2. This chatbot makes it easy to ask questions and get answers.",
+                "3. I have used many chatbots before."
+            ];
+            var data1 = [0,0,0,0,0];
+            var data2 = [0,0,0,0,0];
+            var data3 = [0,0,0,0,0];
+            for(var i=0;i<result.length;i++){
+                for(var s=1;s<=5;s++){
+                    if(result[i].Q1 == s){
+                        data1[s-1]++;
+                    }
+                    if(result[i].Q2 == s){
+                        data2[s-1]++;
+                    }
+                    if(result[i].Q3 == s){
+                        data3[s-1]++;
+                    }
+                }   
+            }
+            setTimeout(()=>{
+                makeChartOnSurveyResult(label,data1,question[0],'Q1.png');
+            },3000);
+            setTimeout(()=>{
+                makeChartOnSurveyResult(label,data2,question[1],'Q2.png');
+            },6000);
+            setTimeout(()=>{
+                makeChartOnSurveyResult(label,data3,question[2],'Q3.png');
+            },9000);
         });
     }
     
@@ -307,7 +363,8 @@ client.connect(err =>{
             userwb.Sheets["User Record"] = userws;
             XLSX.writeFileAsync('WIE_Records.xlsx',userwb,{bookType:"xlsx"},(err) =>{
             });
-        })
+            
+        });
     }
     function createExcelFile(){
         var userwb = XLSX.utils.book_new();
@@ -367,7 +424,35 @@ client.connect(err =>{
                 chartExporter.killPool();
         });
     }
-
+    function makeChartOnSurveyResult(label,value,title,output){
+        // Initialize the exporter
+        chartExporter.initPool();
+        // Chart details object specifies chart type and data to plot
+        var data = [];
+        var chartDetails = require('./json/chart_format_survey.json').chartDetail;
+        for(var i=0;i<value.length;i++){
+            data.push({name:label[i],y:value[i]});
+        }
+        if(data[0]){
+            chartDetails.options.series[0] = {data:data};
+            chartDetails.options.subtitle.text = title;
+        } else if(!data[0]){
+            console.log('error occured');
+            return false;
+        }
+        chartExporter.export(chartDetails, (err, res) => {
+            if(err) return console.log(err);
+            // Get the image data (base64)
+            let imageb64 = res.data;
+            // Filename of the output
+            let outputFile = output;
+            // Save the image to file
+            fs.writeFileSync(outputFile, imageb64, "base64", function(err) {
+                if (err) console.log(err);
+            });
+            chartExporter.killPool();
+        });
+    }
 //========================================
 //      Chatbot Interaction Markdown
 //========================================
@@ -406,17 +491,8 @@ client.connect(err =>{
         return diffmsg;
     }
     function checkMessageAndSendback(chat,msgstr){
-        var kbtxt = ReplyKeyboard.reply_markup.keyboard;
-        console.log(kbtxt[3]);
-        if (msgstr == kbtxt[3][0]){
-            fs.readFile('SPEED_place.txt', 'utf-8', (err, data) => { 
-                if (err) throw err; 
-                bot.sendMediaGroup(chat.id,mapSP);
-                bot.sendMessage(chat.id,data);
-            })
-            return true;
-        }
-        if (msgstr == kbtxt[0][0] || /what jobs/ig.test(msgstr)){
+        if(kbtxt1 && kbtxt2){
+            if (msgstr == kbtxt1[0][0] || /what jobs/ig.test(msgstr)){
             fs.readFile('./text/text_a.txt', 'utf-8', (err, data) => { 
                 if (err) throw err; 
                 bot.sendMessage(chat.id,data);
@@ -425,7 +501,7 @@ client.connect(err =>{
             })
             return true;
         }
-        if (msgstr == kbtxt[0][1] || /Looking for jobs/ig.test(msgstr)){
+        if (msgstr == kbtxt1[0][1] || /Looking for jobs/ig.test(msgstr)){
             fs.readFile('./text/text_b.txt', 'utf-8', (err, data) => { 
                 if (err) throw err; 
                 bot.sendMessage(chat.id,data);
@@ -435,7 +511,7 @@ client.connect(err =>{
             })
             return true;
         }
-        if (msgstr == kbtxt[1][0] || /Got offer/ig.test(msgstr)){
+        if (msgstr == kbtxt1[1][0] || /Got offer/ig.test(msgstr)){
             fs.readFile('./text/text_c.txt', 'utf-8', (err, data) => { 
                 if (err) throw err; 
                 bot.sendMessage(chat.id,data);
@@ -445,7 +521,7 @@ client.connect(err =>{
             })
             return true;
         }
-        if (msgstr == kbtxt[1][1] || /Employed/ig.test(msgstr)){
+        if (msgstr == kbtxt1[1][1] || /Employed/ig.test(msgstr)){
             fs.readFile('./text/text_d.txt', 'utf-8', (err, data) => { 
                 if (err) throw err; 
                 bot.sendMessage(chat.id,data);
@@ -455,7 +531,7 @@ client.connect(err =>{
             })
             return true;
         }
-        if (msgstr == kbtxt[2][0] || /Got 300 hrs/ig.test(msgstr)){
+        if (msgstr == kbtxt2[0][0] || /Got 300 hrs/ig.test(msgstr)){
             fs.readFile('./text/text_e.txt', 'utf-8', (err, data) => { 
                 if (err) throw err; 
                 bot.sendMessage(chat.id,data);
@@ -465,7 +541,7 @@ client.connect(err =>{
             })
             return true;
         }
-        if (msgstr == kbtxt[2][1] || /Where are the forms/ig.test(msgstr)){
+        if (msgstr == kbtxt2[0][1] || /Where are the forms/ig.test(msgstr)){
             fs.readFile('./text/text_f.txt', 'utf-8', (err, data) => { 
                 if (err) throw err; 
                 bot.sendMessage(chat.id,data);
@@ -473,6 +549,24 @@ client.connect(err =>{
                 markChoice(chat,msgstr);
             })
             return true;
+        }
+        if (msgstr == kbtxt2[1]){
+            fs.readFile('SPEED_place.txt', 'utf-8', (err, data) => { 
+                if (err) throw err; 
+                bot.sendMediaGroup(chat.id,mapSP);
+                bot.sendMessage(chat.id,data);
+            })
+            return true;
+        }
+        if (msgstr == kbtxt1[2]){
+            bot.sendMessage(chat.id,"Keyboard Page Changed.",ReplyKeyboard.RM2);
+            return true;
+        }
+        if (msgstr == kbtxt2[2]){
+            bot.sendMessage(chat.id,"Keyboard Page Changed.",ReplyKeyboard.RM1);
+            return true;
+        }
+
         }
     }
     function markChoice(chat,msgstr){

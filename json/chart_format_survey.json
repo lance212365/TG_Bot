@@ -1,0 +1,25 @@
+{
+    "chartDetail":{
+        "type": "png",
+        "options": {
+            "chart": {
+                "type": "pie"
+            },
+            "title": {
+                "text": "Survey Result"
+            },
+            "subtitle": {
+                "text": "1. This chatbot can provide useful information"
+            },
+            "plotOptions": {
+                "pie": {
+                    "dataLabels": {
+                        "enabled": true,
+                        "format": "<b>{point.name}</b>: {point.y}"
+                    }
+                }
+            },
+            "series": []
+        }
+    }
+}
