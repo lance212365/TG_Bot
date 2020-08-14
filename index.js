@@ -26,9 +26,9 @@
 
 const TelegramBot = require('node-telegram-bot-api');
 const MongoClient = require('mongodb').MongoClient;
+const chartExporter = require("highcharts-export-server");
 const fs = require('fs');
 var XLSX = require('xlsx');
-const chartExporter = require("highcharts-export-server");
 
 // JSON config pre-load
 
@@ -47,8 +47,8 @@ const client = new MongoClient(Config.uri, { useUnifiedTopology: true });
 const error = Config.errormsg;
 var mapSP = Config.mapPicture;
 var buttonmsg = Config.buttonmsg;
-var surveyTimer = 10; //1000 = 1 second
-var updateTimer = 5000;
+var surveyTimer = parseInt(Config.surverTimer); 
+var updateTimer = 5000; //1000 = 1 second
 
 const kbtxt1 = ReplyKeyboard.RM1.reply_markup.keyboard;
 const kbtxt2 = ReplyKeyboard.RM2.reply_markup.keyboard;
@@ -193,21 +193,17 @@ client.connect(err =>{
 //========================================
 
     function checkSurveyVaild(msg){
-        inlineSurveyReminder(msg);
-        
-        
-        // !!!!!!!!!!!!!! WILL USE LATER DON'T DELETE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-
-        /* const collection = client.db("WIE_TGUser").collection("WIE_SPEEDTG");
+        const collection = client.db("WIE_TGUser").collection("WIE_SPEEDTG");
         var cursor = {tgname: msg.from.first_name};
         collection.find(cursor).toArray(function (err,result){
             if (err) throw err;
             if(!result[0].Q1){
-                console.log("User did not fill in the survey, Initiaite the survey.");
+                console.log("User did not fill in the survey, initialize the survey.");
                 inlineSurveyReminder(msg);
             }
-        }); */
+        });
+
     }
     var st;
     var scorearr = [];
@@ -248,7 +244,6 @@ client.connect(err =>{
                 }
                 for(var i = 0;i<scorearr.length;i++){
                     if(query.message.chat.id == scorearr[i].chat){
-                        console.log('User '+i+' Entering Survey.');
                         if(query.data && query.message.text == Survey.question[0]){
                             bot.editMessageText(Survey.question[1],{chat_id:query.message.chat.id,message_id:query.message.message_id,reply_markup:Survey.ikscore.reply_markup});
                             scorearr[i].q1 = parseInt(query.data);

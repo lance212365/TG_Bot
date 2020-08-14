@@ -1,6 +1,7 @@
 {
     "token": "964238653:AAFHknNFyK86LtIZ2XOy5aVY0FZRWTBm-u8",
     "uri": "mongodb+srv://wieDBUser:wiedbspeed@cluster0.5xcpe.gcp.mongodb.net/WIE_TGUser?retryWrites=true&w=majority",
+    "surverTimer":60000,
     "buttonmsg": [
         "A. What jobs are suitable for WIE?",
         "B. I have no or less than 300 hrs job experience. I am looking for a job.",
