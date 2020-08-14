@@ -48,6 +48,7 @@ const error = Config.errormsg;
 var mapSP = Config.mapPicture;
 var buttonmsg = Config.buttonmsg;
 var surveyTimer = parseInt(Config.surverTimer); 
+
 var updateTimer = 5000; //1000 = 1 second
 
 const kbtxt1 = ReplyKeyboard.RM1.reply_markup.keyboard;
@@ -291,6 +292,7 @@ client.connect(err =>{
             userws = XLSX.utils.json_to_sheet(data,{header:header});
             userwb.Sheets["Survey Record"] = userws;
             XLSX.writeFileAsync('survey_score.csv', userwb, {bookType:'csv'},(err)=>{});
+            
             var label = ["Strongly Disagree","Disagree","Neutral","Agree","Strongly Agree"];
             var question = [
                 "1. This chatbot can provide useful information.",
