@@ -18,7 +18,7 @@
     "node-gyp": "^7.0.0",
     "node-telegram-bot-api": "^0.50.0",
     "plotly": "^1.0.6",
-    "xlsx": "^0.16.4"
+    "xlsx": "^0.17.0"
   },
   "devDependencies": {
     "chart.js": "^2.4.0",
